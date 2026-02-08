@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Action Codes Wallet Adapter — Test Harness</title>
+    <script type="importmap">
+    {
+        "imports": {
+            "@solana/wallet-adapter-base": "https://esm.sh/@solana/wallet-adapter-base@0.9.27",
+            "@solana/web3.js": "https://esm.sh/@solana/web3.js@1.98.4",
+            "@actioncodes/sdk": "https://esm.sh/@actioncodes/sdk@2.0.18",
+            "lit": "https://esm.sh/lit@3.2.1",
+            "lit/decorators.js": "https://esm.sh/lit@3.2.1/decorators.js"
+        }
+    }
+    </script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f9fafb;
+            color: #111827;
+            padding: 2rem;
+        }
+        h1 { margin-bottom: 0.5rem; }
+        .subtitle { color: #6b7280; margin-bottom: 2rem; }
+        .card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            max-width: 600px;
+        }
+        .card h2 { font-size: 14px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; }
+        .field { margin-bottom: 1rem; }
+        .field label { display: block; font-size: 13px; color: #374151; margin-bottom: 4px; font-weight: 500; }
+        .field input, .field select, .field textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        .field textarea { height: 80px; resize: vertical; }
+        button.action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 150ms;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        button.primary { background: #6366f1; color: white; }
+        button.primary:hover { background: #4f46e5; }
+        button.secondary { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+        button.secondary:hover { background: #e5e7eb; }
+        button.danger { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        button.danger:hover { background: #fee2e2; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .status {
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin-top: 1rem;
+        }
+        .status.info { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .status.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge.connected { background: #dcfce7; color: #16a34a; }
+        .badge.disconnected { background: #f3f4f6; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <h1>Action Codes Wallet Adapter</h1>
+    <p class="subtitle">Manual test harness — open the console for debug logs</p>
+
+    <!-- Config -->
+    <div class="card">
+        <h2>Configuration</h2>
+        <div class="field">
+            <label for="authToken">Auth Token</label>
+            <input id="authToken" type="text" placeholder="Bearer token for Action Codes relay" />
+        </div>
+        <div class="field">
+            <label for="endpoint">Solana RPC Endpoint</label>
+            <input id="endpoint" type="text" value="https://api.devnet.solana.com" />
+        </div>
+        <div class="field">
+            <label for="environment">Environment</label>
+            <select id="environment">
+                <option value="devnet" selected>Devnet</option>
+                <option value="mainnet">Mainnet</option>
+                <option value="local">Local</option>
+            </select>
+        </div>
+        <div class="field">
+            <label for="theme">Theme</label>
+            <select id="theme">
+                <option value="auto">Auto (follows system)</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Connection -->
+    <div class="card">
+        <h2>Connection</h2>
+        <p style="margin-bottom: 12px;">
+            Status: <span id="connStatus" class="badge disconnected">Disconnected</span>
+        </p>
+        <p id="pubkeyDisplay" style="font-size: 13px; color: #6b7280; margin-bottom: 12px;"></p>
+        <button class="action primary" id="btnConnect">Connect</button>
+        <button class="action danger" id="btnDisconnect" disabled>Disconnect</button>
+        <div id="connResult"></div>
+    </div>
+
+    <!-- Sign Message -->
+    <div class="card">
+        <h2>Sign Message</h2>
+        <div class="field">
+            <label for="msgInput">Message</label>
+            <textarea id="msgInput" placeholder="Hello from Action Codes!">Hello from Action Codes!</textarea>
+        </div>
+        <button class="action secondary" id="btnSignMsg" disabled>Sign Message</button>
+        <div id="signMsgResult"></div>
+    </div>
+
+    <!-- Sign Transaction (placeholder) -->
+    <div class="card">
+        <h2>Sign Transaction</h2>
+        <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">
+            Creates a dummy memo transaction for testing.
+        </p>
+        <button class="action secondary" id="btnSignTx" disabled>Sign Transaction</button>
+        <div id="signTxResult"></div>
+    </div>
+
+    <!-- Send Transaction -->
+    <div class="card">
+        <h2>Send Transaction (Sign + Execute)</h2>
+        <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">
+            Creates and sends a dummy memo transaction on-chain.
+        </p>
+        <button class="action secondary" id="btnSendTx" disabled>Send Transaction</button>
+        <div id="sendTxResult"></div>
+    </div>
+
+    <script type="module">
+        // We import the adapter as an ES module from the built dist.
+        // In a real app, you'd import from the npm package.
+        import { ActionCodesWalletAdapter } from '/dist/index.js';
+
+        let adapter = null;
+
+        // UI helpers
+        function showResult(elId, type, text) {
+            const el = document.getElementById(elId);
+            el.innerHTML = `<div class="status ${type}">${text}</div>`;
+        }
+
+        function setConnected(pubkey) {
+            document.getElementById('connStatus').className = 'badge connected';
+            document.getElementById('connStatus').textContent = 'Connected';
+            document.getElementById('pubkeyDisplay').textContent = pubkey ? `Public key: ${pubkey}` : '';
+            document.getElementById('btnConnect').disabled = true;
+            document.getElementById('btnDisconnect').disabled = false;
+            document.getElementById('btnSignMsg').disabled = false;
+            document.getElementById('btnSignTx').disabled = false;
+            document.getElementById('btnSendTx').disabled = false;
+        }
+
+        function setDisconnected() {
+            document.getElementById('connStatus').className = 'badge disconnected';
+            document.getElementById('connStatus').textContent = 'Disconnected';
+            document.getElementById('pubkeyDisplay').textContent = '';
+            document.getElementById('btnConnect').disabled = false;
+            document.getElementById('btnDisconnect').disabled = true;
+            document.getElementById('btnSignMsg').disabled = true;
+            document.getElementById('btnSignTx').disabled = true;
+            document.getElementById('btnSendTx').disabled = true;
+        }
+
+        // Create adapter
+        function createAdapter() {
+            const authToken = document.getElementById('authToken').value.trim();
+            const endpoint = document.getElementById('endpoint').value.trim();
+            const environment = document.getElementById('environment').value;
+            const theme = document.getElementById('theme').value;
+
+            if (!authToken) {
+                showResult('connResult', 'error', 'Please enter an auth token');
+                return null;
+            }
+
+            const a = new ActionCodesWalletAdapter({
+                authToken,
+                connection: endpoint,
+                environment,
+                theme,
+                debug: true,
+            });
+
+            a.on('connect', (pk) => {
+                console.log('Event: connect', pk.toBase58());
+                setConnected(pk.toBase58());
+            });
+
+            a.on('disconnect', () => {
+                console.log('Event: disconnect');
+                setDisconnected();
+            });
+
+            a.on('error', (err) => {
+                console.error('Event: error', err);
+            });
+
+            return a;
+        }
+
+        // Connect
+        document.getElementById('btnConnect').addEventListener('click', async () => {
+            adapter = createAdapter();
+            if (!adapter) return;
+
+            try {
+                await adapter.connect();
+                showResult('connResult', 'success', `Connected!\nPublic key: ${adapter.publicKey?.toBase58()}`);
+            } catch (err) {
+                showResult('connResult', 'error', `Connection failed: ${err.message}`);
+            }
+        });
+
+        // Disconnect
+        document.getElementById('btnDisconnect').addEventListener('click', async () => {
+            if (!adapter) return;
+            try {
+                await adapter.disconnect();
+                showResult('connResult', 'info', 'Disconnected');
+            } catch (err) {
+                showResult('connResult', 'error', `Disconnect failed: ${err.message}`);
+            }
+        });
+
+        // Sign Message
+        document.getElementById('btnSignMsg').addEventListener('click', async () => {
+            if (!adapter) return;
+            const msg = document.getElementById('msgInput').value;
+            try {
+                const encoded = new TextEncoder().encode(msg);
+                const signature = await adapter.signMessage(encoded);
+                const sigHex = Array.from(signature).map(b => b.toString(16).padStart(2, '0')).join('');
+                showResult('signMsgResult', 'success', `Signature (hex):\n${sigHex}`);
+            } catch (err) {
+                showResult('signMsgResult', 'error', `Sign message failed: ${err.message}`);
+            }
+        });
+
+        // Sign Transaction (stub — creates a simple system transfer of 0 SOL)
+        document.getElementById('btnSignTx').addEventListener('click', async () => {
+            if (!adapter) return;
+            showResult('signTxResult', 'info', 'signTransaction requires building a real transaction.\nUse "Send Transaction" for a full end-to-end test.');
+        });
+
+        // Send Transaction (stub — would need @solana/web3.js in this HTML page)
+        document.getElementById('btnSendTx').addEventListener('click', async () => {
+            if (!adapter) return;
+            showResult('sendTxResult', 'info', 'sendTransaction requires @solana/web3.js to build a transaction.\nSee the React example for a full integration.');
+        });
+    </script>
+</body>
+</html>
