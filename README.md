@@ -76,6 +76,25 @@ npm run typecheck   # tsc --noEmit
 npm run dev         # watch mode
 ```
 
+## Testing
+
+Tests use [Vitest](https://vitest.dev/) with [happy-dom](https://github.com/nicedoc/happy-dom) for DOM emulation.
+
+```bash
+npm test            # run once
+npm run test:watch  # watch mode
+```
+
+The modal component has 45 tests covering:
+- Creation, destruction, and DOM lifecycle
+- Code input validation (length, character set)
+- Event dispatching (submit, cancel, keyboard shortcuts)
+- Help tooltip toggle
+- State transitions (input, resolving, approve, success, error)
+- Reset behavior
+- Error display and clearing
+- Theme attribute reflection
+
 ## License
 
 Apache-2.0
