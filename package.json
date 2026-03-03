@@ -1,8 +1,25 @@
 {
-  "name": "@anthropic-test/wallet-adapter-actioncodes",
+  "name": "@actioncodes/wallet-adapter",
   "version": "0.1.0",
   "description": "Action Codes wallet adapter for Solana Wallet Adapter",
+  "author": "Action Codes Core Team",
   "license": "Apache-2.0",
+  "copyright": "Copyright 2025 Trana, Inc.",
+  "homepage": "https://actioncodes.org",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/actioncodesorg/wallet-adapter-actioncodes.git"
+  },
+  "bugs": {
+    "url": "https://github.com/actioncodesorg/wallet-adapter-actioncodes/issues"
+  },
+  "keywords": [
+    "solana",
+    "wallet-adapter",
+    "actioncodes",
+    "action-codes",
+    "wallet"
+  ],
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -16,16 +33,27 @@
   },
   "files": [
     "dist",
-    "src"
+    "package.json",
+    "CHANGELOG.md",
+    "README.md",
+    "LICENSE"
   ],
-  "sideEffects": false,
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "tag": "latest",
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "release:patch": "npm version patch && npm run build && npm publish --access public",
+    "release:minor": "npm version minor && npm run build && npm publish --access public",
+    "release:major": "npm version major && npm run build && npm publish --access public",
+    "publish:dry": "npm run build && npm publish --access public --dry-run"
   },
   "dependencies": {
     "@actioncodes/sdk": "^2.0.18",

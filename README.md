@@ -5,13 +5,13 @@ A [Solana Wallet Adapter](https://github.com/anza-xyz/wallet-adapter) plugin tha
 ## Install
 
 ```bash
-npm install @anthropic-test/wallet-adapter-actioncodes @solana/wallet-adapter-base @solana/web3.js
+npm install @actioncodes/wallet-adapter @solana/wallet-adapter-base @solana/web3.js
 ```
 
 ## Quick Start
 
 ```tsx
-import { ActionCodesWalletAdapter } from '@anthropic-test/wallet-adapter-actioncodes';
+import { ActionCodesWalletAdapter } from '@actioncodes/wallet-adapter';
 import { clusterApiUrl } from '@solana/web3.js';
 
 const wallets = [
@@ -50,9 +50,11 @@ Pass the `wallets` array to `<WalletProvider>` from `@solana/wallet-adapter-reac
 
 ## Supported Operations
 
-- **`signMessage(msg)`** — sign an arbitrary message
+- **`signMessage(msg)`** — sign an arbitrary message (message must be valid UTF-8)
 - **`signTransaction(tx)`** — sign and return a transaction (legacy or versioned)
 - **`sendTransaction(tx, connection)`** — sign, execute on-chain, and return the tx hash
+
+> **Note:** Action codes are one-time-use. `signAllTransactions` is not supported — calling it with multiple transactions will succeed on the first and throw `WalletNotConnectedError` on subsequent ones, because the code is consumed after the first signature.
 
 ## Environment Mapping
 

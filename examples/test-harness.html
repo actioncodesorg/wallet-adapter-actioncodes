@@ -145,11 +145,11 @@
         <div id="signMsgResult"></div>
     </div>
 
-    <!-- Sign Transaction (placeholder) -->
+    <!-- Sign Transaction -->
     <div class="card">
         <h2>Sign Transaction</h2>
         <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">
-            Creates a dummy memo transaction for testing.
+            Builds a 0-lamport self-transfer, signs it, and shows the signed bytes.
         </p>
         <button class="action secondary" id="btnSignTx" disabled>Sign Transaction</button>
         <div id="signTxResult"></div>
@@ -159,18 +159,18 @@
     <div class="card">
         <h2>Send Transaction (Sign + Execute)</h2>
         <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">
-            Creates and sends a dummy memo transaction on-chain.
+            Builds a 0-lamport self-transfer and submits it on-chain.
         </p>
         <button class="action secondary" id="btnSendTx" disabled>Send Transaction</button>
         <div id="sendTxResult"></div>
     </div>
 
     <script type="module">
-        // We import the adapter as an ES module from the built dist.
-        // In a real app, you'd import from the npm package.
         import { ActionCodesWalletAdapter } from '/dist/index.js';
+        import { Connection, Transaction, SystemProgram, PublicKey } from '@solana/web3.js';
 
         let adapter = null;
+        let connection = null;
 
         // UI helpers
         function showResult(elId, type, text) {
@@ -181,7 +181,7 @@
         function setConnected(pubkey) {
             document.getElementById('connStatus').className = 'badge connected';
             document.getElementById('connStatus').textContent = 'Connected';
-            document.getElementById('pubkeyDisplay').textContent = pubkey ? `Public key: ${pubkey}` : '';
+            document.getElementById('pubkeyDisplay').textContent = `Public key: ${pubkey}`;
             document.getElementById('btnConnect').disabled = true;
             document.getElementById('btnDisconnect').disabled = false;
             document.getElementById('btnSignMsg').disabled = false;
@@ -200,6 +200,22 @@
             document.getElementById('btnSendTx').disabled = true;
         }
 
+        // Build a 0-lamport self-transfer transaction (simplest valid transaction)
+        async function buildSelfTransfer(publicKey) {
+            const { blockhash } = await connection.getLatestBlockhash('confirmed');
+            const tx = new Transaction();
+            tx.recentBlockhash = blockhash;
+            tx.feePayer = publicKey;
+            tx.add(
+                SystemProgram.transfer({
+                    fromPubkey: publicKey,
+                    toPubkey: publicKey,
+                    lamports: 0,
+                })
+            );
+            return tx;
+        }
+
         // Create adapter
         function createAdapter() {
             const authToken = document.getElementById('authToken').value.trim();
@@ -211,6 +227,8 @@
                 showResult('connResult', 'error', 'Please enter an auth token');
                 return null;
             }
+
+            connection = new Connection(endpoint, 'confirmed');
 
             const a = new ActionCodesWalletAdapter({
                 authToken,
@@ -275,16 +293,32 @@
             }
         });
 
-        // Sign Transaction (stub — creates a simple system transfer of 0 SOL)
+        // Sign Transaction
         document.getElementById('btnSignTx').addEventListener('click', async () => {
-            if (!adapter) return;
-            showResult('signTxResult', 'info', 'signTransaction requires building a real transaction.\nUse "Send Transaction" for a full end-to-end test.');
+            if (!adapter || !adapter.publicKey) return;
+            showResult('signTxResult', 'info', 'Building transaction…');
+            try {
+                const tx = await buildSelfTransfer(adapter.publicKey);
+                const signed = await adapter.signTransaction(tx);
+                const serialized = signed.serialize({ requireAllSignatures: false });
+                const hex = Array.from(serialized).map(b => b.toString(16).padStart(2, '0')).join('');
+                showResult('signTxResult', 'success', `Signed transaction (${serialized.length} bytes):\n${hex.slice(0, 120)}…`);
+            } catch (err) {
+                showResult('signTxResult', 'error', `Sign transaction failed: ${err.message}`);
+            }
         });
 
-        // Send Transaction (stub — would need @solana/web3.js in this HTML page)
+        // Send Transaction
         document.getElementById('btnSendTx').addEventListener('click', async () => {
-            if (!adapter) return;
-            showResult('sendTxResult', 'info', 'sendTransaction requires @solana/web3.js to build a transaction.\nSee the React example for a full integration.');
+            if (!adapter || !adapter.publicKey) return;
+            showResult('sendTxResult', 'info', 'Building transaction…');
+            try {
+                const tx = await buildSelfTransfer(adapter.publicKey);
+                const txHash = await adapter.sendTransaction(tx, connection);
+                showResult('sendTxResult', 'success', `Transaction confirmed!\nTx hash: ${txHash}`);
+            } catch (err) {
+                showResult('sendTxResult', 'error', `Send transaction failed: ${err.message}`);
+            }
         });
     </script>
 </body>
