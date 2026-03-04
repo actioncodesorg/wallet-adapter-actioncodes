@@ -24,6 +24,8 @@ export const modalStyles = css`
         align-items: center;
         justify-content: center;
         font-family: var(--ac-font);
+        overflow: hidden;
+        overscroll-behavior: contain;
     }
 
     :host([theme="dark"]) {
@@ -64,6 +66,12 @@ export const modalStyles = css`
         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
         animation: slideUp 200ms ease-out;
         color: var(--ac-text);
+    }
+
+    @media (max-width: 600px) {
+        .modal {
+            max-width: 320px;
+        }
     }
 
     .header {
@@ -112,6 +120,12 @@ export const modalStyles = css`
 
     .input-row:focus-within {
         border-color: var(--ac-accent);
+    }
+
+    .close-btn,
+    .help-btn,
+    .submit-btn {
+        touch-action: manipulation;
     }
 
     .help-btn,
