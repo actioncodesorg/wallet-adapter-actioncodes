@@ -87,6 +87,139 @@
         }
         .badge.connected { background: #dcfce7; color: #16a34a; }
         .badge.disconnected { background: #f3f4f6; color: #6b7280; }
+
+        /* ── Wallet Select Modal ── */
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-backdrop.open { display: flex; }
+
+        .modal-card {
+            background: #1a1f2e;
+            border-radius: 20px;
+            padding: 0;
+            width: 420px;
+            max-width: calc(100vw - 2rem);
+            overflow: hidden;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+            animation: modalIn 180ms ease-out;
+        }
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.95) translateY(8px); }
+            to   { opacity: 1; transform: scale(1)    translateY(0); }
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            padding: 1.5rem 1.5rem 0;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #f3f4f6;
+            text-align: center;
+            flex: 1;
+            line-height: 1.4;
+        }
+        .modal-close {
+            background: rgba(255,255,255,0.08);
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #9ca3af;
+            font-size: 18px;
+            flex-shrink: 0;
+            transition: background 150ms;
+            margin: 0;
+            padding: 0;
+        }
+        .modal-close:hover { background: rgba(255,255,255,0.15); color: #f3f4f6; }
+
+        .wallet-list {
+            list-style: none;
+            margin: 1.25rem 0 0;
+        }
+        .wallet-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 1.5rem;
+            cursor: pointer;
+            transition: background 120ms;
+            border-top: 1px solid rgba(255,255,255,0.06);
+        }
+        .wallet-item:hover { background: rgba(255,255,255,0.06); }
+        .wallet-item:first-child { border-top: none; }
+
+        .wallet-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            flex-shrink: 0;
+            object-fit: cover;
+        }
+        .wallet-icon-placeholder {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+            color: white;
+        }
+        .wallet-name {
+            flex: 1;
+            font-size: 15px;
+            font-weight: 500;
+            color: #f3f4f6;
+        }
+        .wallet-badge {
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 400;
+        }
+        .wallet-badge.detected { color: #6b7280; }
+
+        .modal-footer {
+            padding: 1rem 1.5rem 1.5rem;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            margin-top: 0.5rem;
+        }
+        .modal-footer-btn {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            color: #9ca3af;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: background 150ms;
+            margin: 0;
+        }
+        .modal-footer-btn:hover { background: rgba(255,255,255,0.1); color: #f3f4f6; }
     </style>
 </head>
 <body>
@@ -129,7 +262,7 @@
             Status: <span id="connStatus" class="badge disconnected">Disconnected</span>
         </p>
         <p id="pubkeyDisplay" style="font-size: 13px; color: #6b7280; margin-bottom: 12px;"></p>
-        <button class="action primary" id="btnConnect">Connect</button>
+        <button class="action primary" id="btnSelectWallet">Select Wallet</button>
         <button class="action danger" id="btnDisconnect" disabled>Disconnect</button>
         <div id="connResult"></div>
     </div>
@@ -165,14 +298,194 @@
         <div id="sendTxResult"></div>
     </div>
 
+    <!-- Wallet Select Modal -->
+    <div class="modal-backdrop" id="walletModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title">Connect a wallet on<br>Solana to continue</div>
+                <button class="modal-close" id="btnCloseModal">&#x2715;</button>
+            </div>
+            <ul class="wallet-list" id="walletList"></ul>
+            <div class="modal-footer">
+                <button class="modal-footer-btn" id="btnLessMore">
+                    <span id="lessMoreLabel">More options</span>
+                    <span id="lessMoreArrow">▼</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { ActionCodesWalletAdapter } from '/dist/index.js';
         import { Connection, Transaction, SystemProgram, PublicKey } from '@solana/web3.js';
 
         let adapter = null;
         let connection = null;
+        let showingAll = false;
 
-        // UI helpers
+        // ── Wallet detection ──────────────────────────────────────────────────
+
+        const AC_ICON = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzkzIiBoZWlnaHQ9IjM5MyIgdmlld0JveD0iMCAwIDM5MyAzOTMiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzOTIuMTcyIiBoZWlnaHQ9IjM5Mi4xNzIiIHJ4PSIxMyIgZmlsbD0iI0RFRkYwMCIvPgo8cGF0aCBkPSJNMzExLjExIDkxLjA4NTVDMzAwLjc3IDg3Ljc5MSAyODkuOTIzIDg2LjE1MjQgMjc4LjU2IDg2LjE1MjRDMjY0LjIxOSA4Ni4xNTI0IDI1MC41NjggODguOTMxMSAyMzcuNjI1IDk0LjUwNUMyMjQuNjgxIDEwMC4wNzEgMjEzLjI2OSAxMDguMDgyIDIwMy4zOTUgMTE4LjUzOUMxOTkuNTEgMTIyLjY5OSAxOTUuOTgzIDEyNy4xMDggMTkyLjgzMSAxMzEuNzc1TDIxOC4zODQgMTgyLjY0QzIxOS41OTEgMTg1LjA0NCAyMjMuMTY3IDE4NC41NDUgMjIzLjY1OCAxODEuODk5QzIyNS45MjEgMTY5LjczNiAyMzAuODk2IDE1OS4zMTIgMjM4LjU5OCAxNTAuNjI3QzI0OS40OTYgMTM4LjMzMSAyNjMuNTEyIDEzMi4xODMgMjgwLjY0OCAxMzIuMTgzQzI5MC41MjIgMTMyLjE4MyAyOTkuOTQ2IDEzNC40NTQgMzA4LjkzOCAxMzkuMDA1QzMxNy45MjIgMTQzLjU1NSAzMjYuNzk4IDE1MC41MjcgMzM1LjU0OSAxNTkuOTExTDM0MC43MTUgMTA2LjAzNUMzMzEuMzA3IDk5LjM1NSAzMjEuNDMzIDk0LjM3MTggMzExLjEwMSA5MS4wNzc0TDMxMS4xMSA5MS4wODU1WiIgZmlsbD0iYmxhY2siLz4KPHBhdGggZD0iTTcwLjg0OTcgMjU5LjQ3N0gxMTcuMjkxTDExMi4wMjYgMjczLjE3TDk4Ljg5MSAzMDMuODFINTAuMjc4M0w3MC44NDk3IDI1OS40NzdaIiBmaWxsPSJibGFjayIvPgo8cGF0aCBkPSJNMzQxLjQxNCAyNDMuODEyTDMzOS4wMDIgMjg3LjY5NkMzMzguODUyIDI5MC40MTYgMzM3LjM5NiAyOTIuOTA0IDMzNS4xIDI5NC4zNzZDMzI3LjQ0NyAyOTkuMjc2IDMxOS4xOTYgMzAzLjEwMyAzMTAuMzM2IDMwNS44NDlDMzAwLjA0NyAzMDkuMDQzIDI4OS4zNTcgMzEwLjY0IDI3OC4yNzcgMzEwLjY0QzI2Ni4zNTcgMzEwLjY0IDI1NC45MTkgMzA4LjcwMiAyNDMuOTgxIDMwNC44MzRDMjMzLjAzNCAzMDAuOTY1IDIyNC43NCAyOTUuMDUgMjE1LjUyMyAyODcuNDk2QzIwMi40OCAyNzYuODQ4IDE5My4xMTQgMjY0LjQ4NSAxODYuMTc2IDI0OS4xMzZDMTg0LjM3MSAyNDUuMTQzIDE4Mi43OTkgMjQxLjA0OSAxODEuNDU5IDIzNi44NjVMMTUyLjk1MiAxNzAuOTUxTDEzMi4zMTUgMjIxLjQwOEg4OC41MDk4TDE1My45MjYgODAuNDQ1NUMxNTMuOTI2IDgwLjQ0NTUgMjMwLjMzIDIzMy42MTIgMjMyLjU3NiAyMzcuMTE1QzIzNC4zMTUgMjM5LjgxOCAyMzYuMjY5IDI0Mi4zNzIgMjM4LjQ0OSAyNDQuNzg1QzI0OS4yNTQgMjU2Ljc0IDI2My4zMjEgMjYyLjcyMSAyODAuNjQgMjYyLjcyMUMyOTAuODg4IDI2Mi43MjEgMzAxLjEwMyAyNjAuNSAzMTEuMzAyIDI1Ni4wNDFDMzE5LjUxMiAyNTIuNDU1IDMyNy43MDUgMjQ3LjQzMSAzMzUuODkxIDI0MC45NThDMzM4LjE5NSAyMzkuMTM2IDM0MS41NjQgMjQwLjg4MyAzNDEuMzk3IDI0My44MTJIMzQxLjQxNFoiIGZpbGw9ImJsYWNrIi8+Cjwvc3ZnPgo=';
+
+        // Wallets to detect: { id, name, check, color, letter }
+        const KNOWN_WALLETS = [
+            {
+                id: 'phantom',
+                name: 'Phantom',
+                check: () => window.phantom?.solana?.isPhantom,
+                icon: () => 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/icons/phantom.svg',
+                color: '#ab9ff2',
+            },
+            {
+                id: 'backpack',
+                name: 'Backpack',
+                check: () => !!window.backpack,
+                icon: () => null,
+                color: '#e33d3d',
+                letter: 'B',
+            },
+            {
+                id: 'solflare',
+                name: 'Solflare',
+                check: () => window.solflare?.isSolflare,
+                icon: () => 'https://raw.githubusercontent.com/solana-labs/wallet-adapter/master/packages/wallets/icons/solflare.svg',
+                color: '#fc7227',
+            },
+            {
+                id: 'coinbase',
+                name: 'Coinbase Wallet',
+                check: () => !!window.coinbaseSolana,
+                icon: () => null,
+                color: '#0052ff',
+                letter: 'C',
+            },
+        ];
+
+        // ── Modal build ───────────────────────────────────────────────────────
+
+        function buildWalletList() {
+            const list = document.getElementById('walletList');
+            list.innerHTML = '';
+
+            const detected = KNOWN_WALLETS.filter(w => w.check());
+            const undetected = KNOWN_WALLETS.filter(w => !w.check());
+
+            // Detected wallets — always visible
+            for (const w of detected) {
+                list.appendChild(makeWalletItem(w, true, false));
+            }
+
+            // Action Codes — always visible (Loadable)
+            list.appendChild(makeActionCodesItem());
+
+            // Undetected wallets — hidden until "More options"
+            for (const w of undetected) {
+                const li = makeWalletItem(w, false, true);
+                li.dataset.extra = '1';
+                li.style.display = 'none';
+                list.appendChild(li);
+            }
+
+            updateMoreButton(detected.length, undetected.length);
+        }
+
+        function makeWalletItem(w, isDetected, isExtra) {
+            const li = document.createElement('li');
+            li.className = 'wallet-item';
+            li.dataset.walletId = w.id;
+
+            const iconUrl = w.icon?.();
+            let iconEl;
+            if (iconUrl) {
+                iconEl = document.createElement('img');
+                iconEl.className = 'wallet-icon';
+                iconEl.src = iconUrl;
+                iconEl.alt = w.name;
+            } else {
+                iconEl = document.createElement('div');
+                iconEl.className = 'wallet-icon-placeholder';
+                iconEl.style.background = w.color;
+                iconEl.textContent = w.letter || w.name[0];
+            }
+
+            const nameEl = document.createElement('span');
+            nameEl.className = 'wallet-name';
+            nameEl.textContent = w.name;
+
+            const badgeEl = document.createElement('span');
+            badgeEl.className = 'wallet-badge' + (isDetected ? ' detected' : '');
+            badgeEl.textContent = isDetected ? 'Detected' : 'Not installed';
+
+            li.appendChild(iconEl);
+            li.appendChild(nameEl);
+            li.appendChild(badgeEl);
+
+            // Detected wallets just close modal (they have their own flow)
+            li.addEventListener('click', () => {
+                closeModal();
+                showResult('connResult', 'info', `${w.name} selected — use the wallet's own UI to connect`);
+            });
+
+            return li;
+        }
+
+        function makeActionCodesItem() {
+            const li = document.createElement('li');
+            li.className = 'wallet-item';
+            li.dataset.walletId = 'actioncodes';
+
+            const img = document.createElement('img');
+            img.className = 'wallet-icon';
+            img.src = AC_ICON;
+            img.alt = 'Action Codes';
+
+            const nameEl = document.createElement('span');
+            nameEl.className = 'wallet-name';
+            nameEl.textContent = 'Action Codes';
+
+            li.appendChild(img);
+            li.appendChild(nameEl);
+
+            li.addEventListener('click', connectActionCodes);
+            return li;
+        }
+
+        function updateMoreButton(detectedCount, extraCount) {
+            const btn = document.getElementById('btnLessMore');
+            btn.style.display = extraCount === 0 ? 'none' : 'flex';
+        }
+
+        // ── Modal open / close ────────────────────────────────────────────────
+
+        function openModal() {
+            buildWalletList();
+            showingAll = false;
+            document.getElementById('lessMoreLabel').textContent = 'More options';
+            document.getElementById('lessMoreArrow').textContent = '▼';
+            document.getElementById('walletModal').classList.add('open');
+        }
+
+        function closeModal() {
+            document.getElementById('walletModal').classList.remove('open');
+        }
+
+        document.getElementById('btnSelectWallet').addEventListener('click', openModal);
+        document.getElementById('btnCloseModal').addEventListener('click', closeModal);
+        document.getElementById('walletModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeModal();
+        });
+
+        document.getElementById('btnLessMore').addEventListener('click', () => {
+            showingAll = !showingAll;
+            document.querySelectorAll('[data-extra="1"]').forEach(el => {
+                el.style.display = showingAll ? 'flex' : 'none';
+            });
+            document.getElementById('lessMoreLabel').textContent = showingAll ? 'Less options' : 'More options';
+            document.getElementById('lessMoreArrow').textContent = showingAll ? '▲' : '▼';
+        });
+
+        // ── Adapter logic ─────────────────────────────────────────────────────
+
         function showResult(elId, type, text) {
             const el = document.getElementById(elId);
             el.innerHTML = `<div class="status ${type}">${text}</div>`;
@@ -182,7 +495,7 @@
             document.getElementById('connStatus').className = 'badge connected';
             document.getElementById('connStatus').textContent = 'Connected';
             document.getElementById('pubkeyDisplay').textContent = `Public key: ${pubkey}`;
-            document.getElementById('btnConnect').disabled = true;
+            document.getElementById('btnSelectWallet').disabled = true;
             document.getElementById('btnDisconnect').disabled = false;
             document.getElementById('btnSignMsg').disabled = false;
             document.getElementById('btnSignTx').disabled = false;
@@ -193,30 +506,13 @@
             document.getElementById('connStatus').className = 'badge disconnected';
             document.getElementById('connStatus').textContent = 'Disconnected';
             document.getElementById('pubkeyDisplay').textContent = '';
-            document.getElementById('btnConnect').disabled = false;
+            document.getElementById('btnSelectWallet').disabled = false;
             document.getElementById('btnDisconnect').disabled = true;
             document.getElementById('btnSignMsg').disabled = true;
             document.getElementById('btnSignTx').disabled = true;
             document.getElementById('btnSendTx').disabled = true;
         }
 
-        // Build a 0-lamport self-transfer transaction (simplest valid transaction)
-        async function buildSelfTransfer(publicKey) {
-            const { blockhash } = await connection.getLatestBlockhash('confirmed');
-            const tx = new Transaction();
-            tx.recentBlockhash = blockhash;
-            tx.feePayer = publicKey;
-            tx.add(
-                SystemProgram.transfer({
-                    fromPubkey: publicKey,
-                    toPubkey: publicKey,
-                    lamports: 0,
-                })
-            );
-            return tx;
-        }
-
-        // Create adapter
         function createAdapter() {
             const authToken = document.getElementById('authToken').value.trim();
             const endpoint = document.getElementById('endpoint').value.trim();
@@ -224,7 +520,7 @@
             const theme = document.getElementById('theme').value;
 
             if (!authToken) {
-                showResult('connResult', 'error', 'Please enter an auth token');
+                showResult('connResult', 'error', 'Please enter an auth token first');
                 return null;
             }
 
@@ -242,12 +538,10 @@
                 console.log('Event: connect', pk.toBase58());
                 setConnected(pk.toBase58());
             });
-
             a.on('disconnect', () => {
                 console.log('Event: disconnect');
                 setDisconnected();
             });
-
             a.on('error', (err) => {
                 console.error('Event: error', err);
             });
@@ -255,18 +549,19 @@
             return a;
         }
 
-        // Connect
-        document.getElementById('btnConnect').addEventListener('click', async () => {
+        async function connectActionCodes() {
+            closeModal();
             adapter = createAdapter();
             if (!adapter) return;
 
+            showResult('connResult', 'info', 'Opening Action Codes modal…');
             try {
                 await adapter.connect();
                 showResult('connResult', 'success', `Connected!\nPublic key: ${adapter.publicKey?.toBase58()}`);
             } catch (err) {
                 showResult('connResult', 'error', `Connection failed: ${err.message}`);
             }
-        });
+        }
 
         // Disconnect
         document.getElementById('btnDisconnect').addEventListener('click', async () => {
@@ -279,7 +574,23 @@
             }
         });
 
-        // Sign Message
+        // ── Transaction helpers ───────────────────────────────────────────────
+
+        async function buildSelfTransfer(publicKey) {
+            const { blockhash } = await connection.getLatestBlockhash('confirmed');
+            const tx = new Transaction();
+            tx.recentBlockhash = blockhash;
+            tx.feePayer = publicKey;
+            tx.add(
+                SystemProgram.transfer({
+                    fromPubkey: publicKey,
+                    toPubkey: publicKey,
+                    lamports: 0,
+                })
+            );
+            return tx;
+        }
+
         document.getElementById('btnSignMsg').addEventListener('click', async () => {
             if (!adapter) return;
             const msg = document.getElementById('msgInput').value;
@@ -293,7 +604,6 @@
             }
         });
 
-        // Sign Transaction
         document.getElementById('btnSignTx').addEventListener('click', async () => {
             if (!adapter || !adapter.publicKey) return;
             showResult('signTxResult', 'info', 'Building transaction…');
@@ -308,7 +618,6 @@
             }
         });
 
-        // Send Transaction
         document.getElementById('btnSendTx').addEventListener('click', async () => {
             if (!adapter || !adapter.publicKey) return;
             showResult('sendTxResult', 'info', 'Building transaction…');
