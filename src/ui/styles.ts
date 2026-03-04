@@ -24,8 +24,6 @@ export const modalStyles = css`
         align-items: center;
         justify-content: center;
         font-family: var(--ac-font);
-        overflow: hidden;
-        overscroll-behavior: contain;
     }
 
     :host([theme="dark"]) {
@@ -49,7 +47,7 @@ export const modalStyles = css`
     }
 
     .overlay {
-        position: fixed;
+        position: absolute;
         inset: 0;
         background: var(--ac-overlay);
         animation: fadeIn 150ms ease-out;

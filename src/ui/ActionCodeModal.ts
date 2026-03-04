@@ -45,13 +45,21 @@ export class ActionCodeModal extends LitElement {
 
     override connectedCallback(): void {
         super.connectedCallback();
-        // Focus trap — prevent scrolling behind modal
+        // Lock scroll on both <html> and <body> (covers iOS Safari + desktop)
+        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+        document.documentElement.style.overflow = 'hidden';
         document.body.style.overflow = 'hidden';
+        // Compensate for scrollbar disappearing to prevent layout shift
+        if (scrollbarWidth > 0) {
+            document.body.style.paddingRight = `${scrollbarWidth}px`;
+        }
     }
 
     override disconnectedCallback(): void {
         super.disconnectedCallback();
+        document.documentElement.style.overflow = '';
         document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
     }
 
     override firstUpdated(): void {
